@@ -1,0 +1,138 @@
+import os
+import requests
+import json
+import random
+
+# ========== API Keys from Environment ==========
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
+# ========== Step 1: Generate Caption with Gemini ==========
+def generate_caption():
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+    
+    prompts = [
+        "Write a short, engaging Instagram Reel caption for a luxury real estate property. Include 5 relevant hashtags. Keep it under 150 words. Make it inspiring and aspirational.",
+        "Create an Instagram caption for a stunning luxury villa listing. Include emojis, a call-to-action to book via the link in bio, and 5 hashtags related to luxury travel and real estate.",
+        "Write a captivating Instagram Reel caption showcasing a luxury penthouse. Mention Airbnb or VRBO booking. Add 5 trending hashtags. Keep it short and punchy.",
+    ]
+    
+    prompt = random.choice(prompts)
+    
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}]
+    }
+    
+    response = requests.post(url, json=payload)
+    data = response.json()
+    
+    try:
+        caption = data["candidates"][0]["content"]["parts"][0]["text"]
+        print("✅ Caption generated successfully")
+        return caption
+    except Exception as e:
+        print(f"❌ Caption generation failed: {e}")
+        print(f"Response: {data}")
+        return "✨ Dream big. Live luxuriously. 🏡\n\nYour perfect escape awaits. Book now via link in bio!\n\n#LuxuryRealEstate #LuxuryTravel #DreamHome #Airbnb #LuxuryLiving"
+
+# ========== Step 2: Get Luxury Video from Pexels ==========
+def get_luxury_video():
+    searches = ["luxury villa", "luxury penthouse", "luxury mansion", "luxury pool", "luxury resort"]
+    query = random.choice(searches)
+    
+    url = f"https://api.pexels.com/videos/search?query={query}&per_page=15&orientation=portrait"
+    headers = {"Authorization": PEXELS_API_KEY}
+    
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    
+    try:
+        videos = data["videos"]
+        video = random.choice(videos)
+        
+        # Get the best quality video file
+        video_files = video["video_files"]
+        # Prefer HD vertical videos
+        hd_files = [f for f in video_files if f.get("height", 0) >= 1080]
+        chosen = hd_files[0] if hd_files else video_files[0]
+        
+        video_url = chosen["link"]
+        video_id = video["id"]
+        
+        print(f"✅ Video found: ID {video_id} - {query}")
+        return video_url, video_id
+    except Exception as e:
+        print(f"❌ Video fetch failed: {e}")
+        return None, None
+
+# ========== Step 3: Download Video ==========
+def download_video(video_url):
+    print("⬇️ Downloading video...")
+    response = requests.get(video_url, stream=True)
+    
+    filename = "reel_video.mp4"
+    with open(filename, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+    
+    size_mb = os.path.getsize(filename) / (1024 * 1024)
+    print(f"✅ Video downloaded: {size_mb:.1f} MB")
+    return filename
+
+# ========== Step 4: Send to Telegram ==========
+def send_to_telegram(video_path, caption):
+    print("📤 Sending to Telegram...")
+    
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendVideo"
+    
+    with open(video_path, "rb") as video_file:
+        response = requests.post(url, data={
+            "chat_id": TELEGRAM_CHAT_ID,
+            "caption": caption,
+            "parse_mode": "HTML"
+        }, files={
+            "video": video_file
+        })
+    
+    if response.status_code == 200:
+        print("✅ Video sent to Telegram successfully!")
+        return True
+    else:
+        print(f"❌ Telegram send failed: {response.text}")
+        return False
+
+# ========== Main ==========
+def main():
+    print("🚀 Starting Luxury Reel Generator...")
+    print("=" * 50)
+    
+    # Generate caption
+    caption = generate_caption()
+    print(f"\n📝 Caption:\n{caption}\n")
+    
+    # Get video
+    video_url, video_id = get_luxury_video()
+    if not video_url:
+        print("❌ Failed to get video. Exiting.")
+        return
+    
+    # Download video
+    video_path = download_video(video_url)
+    
+    # Send to Telegram
+    success = send_to_telegram(video_path, caption)
+    
+    if success:
+        print("\n🎉 Reel ready! Check your Telegram.")
+    else:
+        print("\n❌ Failed to send reel.")
+    
+    # Cleanup
+    if os.path.exists(video_path):
+        os.remove(video_path)
+        print("🧹 Temp file cleaned up.")
+
+if __name__ == "__main__":
+    main()u
