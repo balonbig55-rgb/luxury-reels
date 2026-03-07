@@ -1,0 +1,34 @@
+name: Generate Luxury Reels
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 6 صباحاً
+    - cron: '0 12 * * *'  # 12 ظهراً
+    - cron: '0 18 * * *'  # 6 مساءً
+  workflow_dispatch:       # تشغيل يدوي
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Run reel generator
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python main.py
